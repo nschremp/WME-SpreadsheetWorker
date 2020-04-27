@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2020.04.25
+// @version          2020.04.26
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,8 +27,9 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Made columns for lat, lon, state, and completed configurable. This opens up the script to be used for other lists as well.</li>
-    <li>Implemented get previous hot key. shift + n</li>
+    <li>Visual improvements</li>
+    <li>Usability improvements</li>
+    <li>Updates to the API Key instructions</li>
   </ul>
 </p>`;
 
@@ -115,7 +116,10 @@
         $.ajax({
             url: url,
             success: function(data){
-                data.values.shift();
+              $('#swCampaignSelect')
+                .empty()
+                .append('<option selected="selected" value="">Select</option>');
+                data.values.shift(); // Kill header row
                 data.values.forEach(function(item, i){
                     let campaignRow = {campaignName:item[0],
                                        spreadsheetId:item[1],
@@ -169,13 +173,17 @@
     }
 
     function getNext() {
-        let currentRow = parseInt($('#swCurRow').val(), 10);
-
         let campaignRow = $('#swCampaignSelect').val();
+
+        if (campaignRow === '') {
+            WazeWrap.Alerts.error('Spreadsheet Worker', 'You must select a campaign first.');
+        }
         let completeCol = campaigns[campaignRow].completeCol.toUpperCase().charCodeAt(0) - 65;
         let stateCol = campaigns[campaignRow].stateCol.toUpperCase().charCodeAt(0) - 65;
         let lonCol = campaigns[campaignRow].lonCol.toUpperCase().charCodeAt(0) - 65;
         let latCol = campaigns[campaignRow].latCol.toUpperCase().charCodeAt(0) - 65;
+
+        let currentRow = parseInt($('#swCurRow').val(), 10);
 
         while(typeof sheetData.values[currentRow] !== "undefined" && currentRow < 500000 ) {
             if( typeof sheetData.values[currentRow][completeCol] === "undefined" &&
@@ -196,6 +204,17 @@
             currentRow++;
         }
         WazeWrap.Alerts.info("Spreadsheet Worker", "No more rows found.");
+    }
+
+    function updateAPIKey() {
+        let apiKey = $('#swAPIKey').val();
+        if(apiKey){
+            localStorage.setItem('SW_API_KEY', apiKey);
+            getCampaignData();
+        }
+        else {
+            WazeWrap.Alerts.error('Spreadsheet Worker', 'No API Key set.');
+        }
     }
 
     function bootstrap(tries = 1) {
@@ -219,13 +238,13 @@
                                          function (){
             $("#swGetNextBtn").click(()=>{getNext()});
             STATES.forEach(function(item, i){
-                var opt = document.createElement('option');
-                opt.value = item.name;
-                opt.innerHTML = item.name;
-                document.getElementById('swStateFilter').appendChild(opt);
+                $('#swStateFilter').append("<option value="+item.name+">"+item.name+"</option>");
             });
             $("#swStateFilter").change(()=>{document.getElementById('swCurRow').value = 1;});
             $("#swCampaignSelect").change(()=>{getAllRowData()});
+            $("#swAPIKeyUpdate").click(function(){updateAPIKey();});
+            $("#refreshCampaign").click(function(){getCampaignData();});
+            $("#swTab").tabs();
         });
 
         if (!localStorage.getItem('SW_API_KEY')) {
@@ -245,39 +264,52 @@
     function tabHTML(){
         return `
 <div id='swTab'>
-  <div style='display: block' >
-    <label for='swCampaignSelect'>Campaign</label>
-    <select id='swCampaignSelect'>
-      <option value=''>Select</option>
-    </select>
+  <ul>
+    <li><a href="#swTab1">Spreadsheet Worker</a></li>
+    <li><a href="#swTab2">Settings</a></li>
+  </ul>
+  <div id="swTab1">
+    <div style='display: block' >
+      <label for='swCampaignSelect'>Campaign</label>
+      <select id='swCampaignSelect'>
+        <option value=''>Select</option>
+      </select>
+      <button id="refreshCampaign">Refresh</button>
+    </div>
+    <div style='display: block' >
+      <label for='swStateFilter'>Filter State</label>
+      <select id='swStateFilter'>
+        <option value=''>None</option>
+      </select>
+    </div>
+    <div style='display: block' >
+      <button id='swGetNextBtn'>Next</button>
+      <label for='swCurRow'>Current Row</label>
+      <input id='swCurRow' size=10 value=1 />
+    </div>
   </div>
-  <div style='display: block' >
-    <label for='swStateFilter'>Filter State</label>
-    <select id='swStateFilter'>
-      <option value=''>None</option>
-    </select>
-  </div>
-  <div style='display: block' >
-    <button id='swGetNextBtn'>Next</button>
-    <label for='swCurRow'>Current Row</label>
-    <input id='swCurRow' size=10 value=1 />
-  </div>
-  <div style='display: block' >
-    <button id='swAPIKeyUpdate' onClick="localStorage.setItem('SW_API_KEY', document.getElementById('swAPIKey').value)">Update API key</button>
-    <input id='swAPIKey'  />
-  </div>
-  <div>
-    <ol>
-      <li>Go to <a href='https://console.cloud.google.com/projectselector2/apis/credentials'>Google Cloud Console</a></li>
-      <li>Select create a project</li>
-      <li>Give it any name you want and click create</li>
-      <li>Click create credentials -> API Key</li>
-      <li>Click Dashboard on the left</li>
-      <li>Click enable APIs and Services</li>
-      <li>Find Google Sheets API and click it</li>
-      <li>Click Enable.</li>
-      <li>Done. You should be able to use the script. It may take a few minutes for the changes to take effect</li>
-    </ol>
+  <div id="swTab2">
+    <div style='display: block' >
+      <button id='swAPIKeyUpdate'>Update API key</button>
+      <input id='swAPIKey'  />
+    </div>
+    <div>
+      <ol>
+        <li>Go to <a href='https://console.cloud.google.com/projectselector2/apis/credentials'>Google Cloud Console</a></li>
+        <li>Select create a project</li>
+        <li>Give it any name you want and click create</li>
+        <li>Click create credentials -> API Key</li>
+        <li>Click Dashboard on the left</li>
+        <li>Click enable APIs and Services</li>
+        <li>Find Google Sheets API and click it</li>
+        <li>Click Enable.</li>
+        <li>Click the back arrow on the top left twice.</li>
+        <li>Click 'Credentials' on the left side</li
+        <li>Copy the generated key, paste it into the above box, and click 'Update API Key'</li>
+        <li>Done. You should be able to use the script. It may take a few minutes for the changes to take effect</li>
+        <li>If the campaign select box is not populating, try refreshing the list</li>
+      </ol>
+    </div>
   </div>
 </div>`;
     }
