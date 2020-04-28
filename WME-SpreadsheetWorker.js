@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2020.04.26
+// @version          2020.04.27
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,9 +27,7 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Visual improvements</li>
-    <li>Usability improvements</li>
-    <li>Updates to the API Key instructions</li>
+    <li>Moved refresh campaign button to settings tab</li>
   </ul>
 </p>`;
 
@@ -274,7 +272,6 @@
       <select id='swCampaignSelect'>
         <option value=''>Select</option>
       </select>
-      <button id="refreshCampaign">Refresh</button>
     </div>
     <div style='display: block' >
       <label for='swStateFilter'>Filter State</label>
@@ -292,6 +289,7 @@
     <div style='display: block' >
       <button id='swAPIKeyUpdate'>Update API key</button>
       <input id='swAPIKey'  />
+      <button id="refreshCampaign">Refresh Campaigns</button>
     </div>
     <div>
       <ol>
