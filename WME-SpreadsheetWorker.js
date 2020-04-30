@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2020.04.27
+// @version          2020.04.29
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,7 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Moved refresh campaign button to settings tab</li>
+    <li>Bug fix: State filter did not work for states with two words in the name</li>
   </ul>
 </p>`;
 
@@ -100,6 +100,11 @@
     let tab = {};
     let campaigns = [];
 
+    let pgMaxX = 0;
+    let pgMinX = 0;
+    let pgMaxY = 0;
+    let pgMinY = 0;
+
     function getCampaignData() {
         let apiKey = localStorage.getItem('SW_API_KEY')
 
@@ -170,6 +175,20 @@
         getNext();
     }
 
+    function stateFilterPass(state) {
+        return state.toLowerCase() === $('#swStateFilter').val().toLowerCase() ||
+               '' === $('#swStateFilter').val()
+    }
+
+    function polygonPass(xCoord, yCoord) {
+      return true;
+
+      if( xCoord < pgMinX || xCoord > pgMaxX || yCoord < pgMinY || yCoord > pgMaxY) {
+        return false;
+      }
+      return true;
+    }
+
     function getNext() {
         let campaignRow = $('#swCampaignSelect').val();
 
@@ -184,12 +203,14 @@
         let currentRow = parseInt($('#swCurRow').val(), 10);
 
         while(typeof sheetData.values[currentRow] !== "undefined" && currentRow < 500000 ) {
-            if( typeof sheetData.values[currentRow][completeCol] === "undefined" &&
-               (sheetData.values[currentRow][stateCol].toLowerCase() === $('#swStateFilter').val().toLowerCase() || '' === $('#swStateFilter').val())
-              ) {
-                let lon = sheetData.values[currentRow][lonCol];
-                let lat = sheetData.values[currentRow][latCol];
+            let lon = sheetData.values[currentRow][lonCol];
+            let lat = sheetData.values[currentRow][latCol];
 
+            if( (typeof sheetData.values[currentRow][completeCol] === "undefined" ||
+                 sheetData.values[currentRow][completeCol] === "") &&
+                stateFilterPass(sheetData.values[currentRow][stateCol]) &&
+                polygonPass(lon, lat)
+              ) {
                 console.log("SW: Row="+(currentRow+1)+" Lon="+lon+" Lat="+lat);
 
                 var location = OpenLayers.Layer.SphericalMercator.forwardMercator(parseFloat(lon), parseFloat(lat));
@@ -236,7 +257,7 @@
                                          function (){
             $("#swGetNextBtn").click(()=>{getNext()});
             STATES.forEach(function(item, i){
-                $('#swStateFilter').append("<option value="+item.name+">"+item.name+"</option>");
+                $('#swStateFilter').append("<option value='"+item.name+"'>"+item.name+"</option>");
             });
             $("#swStateFilter").change(()=>{document.getElementById('swCurRow').value = 1;});
             $("#swCampaignSelect").change(()=>{getAllRowData()});
