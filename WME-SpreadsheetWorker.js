@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2020.04.29
+// @version          2020.05.17
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,8 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Bug fix: State filter did not work for states with two words in the name</li>
+    <li>Enhancement: Utilize settings save feature of waze wrap.</li>
+    <li>Bug fix: Make keybind for select next/previous configurable to avoid conflicts.</li>
   </ul>
 </p>`;
 
@@ -106,14 +107,12 @@
     let pgMinY = 0;
 
     function getCampaignData() {
-        let apiKey = localStorage.getItem('SW_API_KEY')
-
-        if( apiKey === '' ) {
+        if( settings.apiKey === '' ) {
             WazeWrap.Alerts.error('Spreadsheet Worker', 'You must set an API key before using this script');
             return;
         }
 
-        let url = "https://sheets.googleapis.com/v4/spreadsheets/"+CAMPAIGN_SHEET_ID+"/values/Sheet1!A1:J500?key="+apiKey;
+        let url = "https://sheets.googleapis.com/v4/spreadsheets/"+CAMPAIGN_SHEET_ID+"/values/Sheet1!A1:J500?key="+settings.apiKey;
         console.log("SW: getting sheet info ("+url+")");
 
         $.ajax({
@@ -147,14 +146,13 @@
         let spreadsheetId=campaigns[campaignRow].spreadsheetId;
         let sheetName=campaigns[campaignRow].sheetName;
         let maxRows=campaigns[campaignRow].maxRows;
-        let apiKey = localStorage.getItem('SW_API_KEY')
 
-        if( apiKey === '' ) {
+        if( settings.apiKey === '' ) {
             WazeWrap.Alerts.error('Spreadsheet Worker', 'You must set an API key before using this script');
             return;
         }
 
-        let url = encodeURI("https://sheets.googleapis.com/v4/spreadsheets/"+spreadsheetId+"/values/"+sheetName+"!A1:J"+maxRows+"?key="+apiKey);
+        let url = encodeURI("https://sheets.googleapis.com/v4/spreadsheets/"+spreadsheetId+"/values/"+sheetName+"!A1:J"+maxRows+"?key="+settings.apiKey);
         console.log("SW: getting sheet info ("+url+")");
 
         $.ajax({
@@ -226,14 +224,8 @@
     }
 
     function updateAPIKey() {
-        let apiKey = $('#swAPIKey').val();
-        if(apiKey){
-            localStorage.setItem('SW_API_KEY', apiKey);
-            getCampaignData();
-        }
-        else {
-            WazeWrap.Alerts.error('Spreadsheet Worker', 'No API Key set.');
-        }
+        settings.apiKey = $('#swAPIKey').val();
+        saveSettings();
     }
 
     function bootstrap(tries = 1) {
@@ -251,7 +243,7 @@
 
     bootstrap();
 
-    function init(){
+    async function init(){
         console.log("SW: Spreadsheet Worker Initializing.");
         tab = new WazeWrap.Interface.Tab("SW", tabHTML(),
                                          function (){
@@ -266,15 +258,16 @@
             $("#swTab").tabs();
         });
 
-        if (!localStorage.getItem('SW_API_KEY')) {
-            localStorage.setItem('SW_API_KEY', '');
-        }
+        await loadSettings();
 
         getCampaignData();
 
-        new WazeWrap.Interface.Shortcut("Next Row", "Get next row from spreadsheet worker script", "wmessw", "WME Spreadsheet Worker", "N", function(){getNext();}, null).add();
-        new WazeWrap.Interface.Shortcut("Prev Row", "Get previous row from spreadsheet worker script", "wmessw", "WME Spreadsheet Worker", "S+N", function(){getPrev();}, null).add();
+        new WazeWrap.Interface.Shortcut("nextRowShortcut", "Get next row from spreadsheet worker script", "wmessw", "WME Spreadsheet Worker", settings.nextRowShortcut, function(){getNext();}, null).add();
+        new WazeWrap.Interface.Shortcut("prevRowShortcut", "Get previous row from spreadsheet worker script", "wmessw", "WME Spreadsheet Worker", settings.prevRowShortcut, function(){getPrev();}, null).add();
 
+        window.addEventListener("beforeunload", function() {
+		        checkShortcutsChanged();
+        }, false);
         WazeWrap.Interface.ShowScriptUpdate(SCRIPT_NAME, VERSION, UPDATE_NOTES, "https://greasyfork.org/en/scripts/401655-spreadsheet-worker", "https://www.waze.com/forum/viewtopic.php?f=819&t=301076");
 
         console.log("SW: Spreadsheet Worker Initialized.");
@@ -331,5 +324,93 @@
     </div>
   </div>
 </div>`;
+    }
+
+    async function loadSettings() {
+      let loadedSettings = $.parseJSON(localStorage.getItem("WMESSW_Settings"));
+      let defaultSettings = {
+        filterState: "",
+        nextRowShortcut: "N",
+        prevRowShortcut: "S+N",
+        apiKey: "",
+        lastSaved: 0
+      };
+
+      settings = $.extend({}, defaultSettings, loadedSettings);
+
+      let serverSettings = await WazeWrap.Remote.RetrieveSettings("WME_SSW");
+      if(serverSettings && serverSettings.lastSaved > settings.lastSaved)
+      $.extend(settings, serverSettings);
+
+      //moved where I store this. Need to pull it from old and store in new.
+      if (localStorage.getItem('SW_API_KEY')) {
+        settings.apiKey = localStorage.getItem('SW_API_KEY');
+        localStorage.removeItem('SW_API_KEY');
+        saveSettings();
+      }
+    }
+
+    function saveSettings() {
+      if (localStorage) {
+        var localsettings = {
+          filterState: settings.filterState,
+          apiKey: settings.apiKey,
+          lastSaved: Date.now()
+        };
+
+        for (var name in W.accelerators.Actions) {
+          let TempKeys = "";
+          if (W.accelerators.Actions[name].group == 'wmessw') {
+            if (W.accelerators.Actions[name].shortcut) {
+              if (W.accelerators.Actions[name].shortcut.altKey === true)
+                TempKeys += 'A';
+              if (W.accelerators.Actions[name].shortcut.shiftKey === true)
+                TempKeys += 'S';
+              if (W.accelerators.Actions[name].shortcut.ctrlKey === true)
+                TempKeys += 'C';
+              if (TempKeys !== "")
+                TempKeys += '+';
+              if (W.accelerators.Actions[name].shortcut.keyCode)
+                TempKeys += W.accelerators.Actions[name].shortcut.keyCode;
+            }
+            else {
+              TempKeys = "-1";
+            }
+            localsettings[name] = TempKeys;
+          }
+        }
+
+        localStorage.setItem("WMESSW_Settings", JSON.stringify(localsettings));
+        WazeWrap.Remote.SaveSettings("WME_SSW", localsettings);
+      }
+    }
+
+    function checkShortcutsChanged(){
+        let triggerSave = false;
+        for (let name in W.accelerators.Actions) {
+            let TempKeys = "";
+            if (W.accelerators.Actions[name].group == 'wmepie') {
+                if (W.accelerators.Actions[name].shortcut) {
+                    if (W.accelerators.Actions[name].shortcut.altKey === true)
+                        TempKeys += 'A';
+                    if (W.accelerators.Actions[name].shortcut.shiftKey === true)
+                        TempKeys += 'S';
+                    if (W.accelerators.Actions[name].shortcut.ctrlKey === true)
+                        TempKeys += 'C';
+                    if (TempKeys !== "")
+                        TempKeys += '+';
+                    if (W.accelerators.Actions[name].shortcut.keyCode)
+                        TempKeys += W.accelerators.Actions[name].shortcut.keyCode;
+                } else {
+                    TempKeys = "-1";
+                }
+                if(settings[name] != Tempkeys){
+                    triggerSave = true;
+                    break;
+                }
+            }
+        }
+        if(triggerSave)
+            saveSettings();
     }
 })();
