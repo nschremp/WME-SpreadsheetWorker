@@ -112,7 +112,7 @@
             return;
         }
 
-        let url = "https://sheets.googleapis.com/v4/spreadsheets/"+CAMPAIGN_SHEET_ID+"/values/Sheet1!A1:J500?key="+settings.apiKey;
+        let url = "https://sheets.googleapis.com/v4/spreadsheets/"+CAMPAIGN_SHEET_ID+"/values/Sheet1!A1:K500?key="+settings.apiKey;
         console.log("SW: getting sheet info ("+url+")");
 
         $.ajax({
@@ -132,7 +132,9 @@
                                        stateCol:item[6],
                                        completeCol:item[7],
                                        betaOnly:(item[8]==='TRUE'),
-                                       active:(item[9]==='TRUE')};
+                                       active:(item[9]==='TRUE'),
+                                       test:(item[9]==='TEST'),
+                                       permalink:item[10]};
                     campaigns.push(campaignRow);
                     if(campaignRow.active){$('#swCampaignSelect').append(new Option(item[0], i))};
                 });
