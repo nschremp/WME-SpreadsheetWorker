@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2020.05.22
+// @version          2020.10.13
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,8 +27,9 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Enhancement: Utilize settings save feature of waze wrap.</li>
-    <li>Bug fix: Make keybind for select next/previous configurable to avoid conflicts.</li>
+    <li>Enhancement: Changes to work with sheets that only have PLs.</li>
+    <li>Enhancement: Changes to allow sheets that don't start on row 2.</li>
+    <li>Enhancement: Changes to allow sheets thathave a checkbox for a complete column.</li>
   </ul>
 </p>`;
 
@@ -170,7 +171,6 @@
             },
             dataType: 'JSON'
         });
-        console.log("SW: Setting start row to "+campaigns[campaignRow].startingRow);
         document.getElementById('swCurRow').value = campaigns[campaignRow].startingRow;
     }
 
@@ -234,7 +234,6 @@
     function getLat(currentRow, latCol, plCol) {
         let permalink = sheetData.values[currentRow][plCol];
         if(typeof permalink === 'string' && permalink !== '') {
-            console.log("sw: "+permalink);
             let result = permalink.match(/lat=([0-9\-\.]*)/);
             return result[1];
         }
@@ -246,7 +245,6 @@
     function getLon(currentRow, lonCol, plCol) {
         let permalink = sheetData.values[currentRow][plCol];
         if(typeof permalink === 'string' && permalink !== '') {
-          console.log("sw: "+permalink);
             let result = permalink.match(/lon=([0-9\-\.]*)/);
             return result[1];
         }
