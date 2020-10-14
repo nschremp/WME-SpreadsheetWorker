@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2020.05.17
+// @version          2020.10.13
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,8 +27,9 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Enhancement: Utilize settings save feature of waze wrap.</li>
-    <li>Bug fix: Make keybind for select next/previous configurable to avoid conflicts.</li>
+    <li>Enhancement: Changes to work with sheets that only have PLs.</li>
+    <li>Enhancement: Changes to allow sheets that don't start on row 2.</li>
+    <li>Enhancement: Changes to allow sheets thathave a checkbox for a complete column.</li>
   </ul>
 </p>`;
 
@@ -112,7 +113,7 @@
             return;
         }
 
-        let url = "https://sheets.googleapis.com/v4/spreadsheets/"+CAMPAIGN_SHEET_ID+"/values/Sheet1!A1:J500?key="+settings.apiKey;
+        let url = "https://sheets.googleapis.com/v4/spreadsheets/"+CAMPAIGN_SHEET_ID+"/values/Sheet1!A1:L500?key="+settings.apiKey;
         console.log("SW: getting sheet info ("+url+")");
 
         $.ajax({
@@ -132,9 +133,17 @@
                                        stateCol:item[6],
                                        completeCol:item[7],
                                        betaOnly:(item[8]==='TRUE'),
-                                       active:(item[9]==='TRUE')};
+                                       active:(item[9]==='TRUE'),
+                                       test:(item[9]==='TEST'),
+                                       plCol:item[10],
+                                       startingRow:item[11]-1};
+                    if(!campaignRow.startingRow) {
+                      campaignRow.startingRow = 1;
+                    }
                     campaigns.push(campaignRow);
-                    if(campaignRow.active){$('#swCampaignSelect').append(new Option(item[0], i))};
+                    if(campaignRow.active || (campaignRow.test && WazeWrap.User.Username() === 'FastestBeef')){
+                      $('#swCampaignSelect').append(new Option(item[0], i));
+                    };
                 });
             },
             dataType: 'JSON'
@@ -162,8 +171,7 @@
             },
             dataType: 'JSON'
         });
-
-        document.getElementById('swCurRow').value = 1;
+        document.getElementById('swCurRow').value = campaigns[campaignRow].startingRow;
     }
 
     function getPrev() {
@@ -197,20 +205,20 @@
         let stateCol = campaigns[campaignRow].stateCol.toUpperCase().charCodeAt(0) - 65;
         let lonCol = campaigns[campaignRow].lonCol.toUpperCase().charCodeAt(0) - 65;
         let latCol = campaigns[campaignRow].latCol.toUpperCase().charCodeAt(0) - 65;
+        let plCol = campaigns[campaignRow].plCol.toUpperCase().charCodeAt(0) - 65;
 
         let currentRow = parseInt($('#swCurRow').val(), 10);
 
         while(typeof sheetData.values[currentRow] !== "undefined" && currentRow < 500000 ) {
-            let lon = sheetData.values[currentRow][lonCol];
-            let lat = sheetData.values[currentRow][latCol];
+            let lon = getLon(currentRow, lonCol, plCol);
+            let lat = getLat(currentRow, latCol, plCol);
 
             if( (typeof sheetData.values[currentRow][completeCol] === "undefined" ||
-                 sheetData.values[currentRow][completeCol] === "") &&
+                 sheetData.values[currentRow][completeCol] === "" ||
+                 sheetData.values[currentRow][completeCol] === "FALSE") &&
                 stateFilterPass(sheetData.values[currentRow][stateCol]) &&
                 polygonPass(lon, lat)
               ) {
-                console.log("SW: Row="+(currentRow+1)+" Lon="+lon+" Lat="+lat);
-
                 var location = OpenLayers.Layer.SphericalMercator.forwardMercator(parseFloat(lon), parseFloat(lat));
 
                 //W.map.getOLMap().zoomTo(9);
@@ -221,6 +229,28 @@
             currentRow++;
         }
         WazeWrap.Alerts.info("Spreadsheet Worker", "No more rows found.");
+    }
+
+    function getLat(currentRow, latCol, plCol) {
+        let permalink = sheetData.values[currentRow][plCol];
+        if(typeof permalink === 'string' && permalink !== '') {
+            let result = permalink.match(/lat=([0-9\-\.]*)/);
+            return result[1];
+        }
+        else {
+            return sheetData.values[currentRow][latCol];
+        }
+    }
+
+    function getLon(currentRow, lonCol, plCol) {
+        let permalink = sheetData.values[currentRow][plCol];
+        if(typeof permalink === 'string' && permalink !== '') {
+            let result = permalink.match(/lon=([0-9\-\.]*)/);
+            return result[1];
+        }
+        else {
+            return sheetData.values[currentRow][lonCol];
+        }
     }
 
     function updateAPIKey() {
@@ -251,7 +281,14 @@
             STATES.forEach(function(item, i){
                 $('#swStateFilter').append("<option value='"+item.name+"'>"+item.name+"</option>");
             });
-            $("#swStateFilter").change(()=>{document.getElementById('swCurRow').value = 1;});
+            $("#swStateFilter").change(()=>{
+              let campaignRow = $('#swCampaignSelect').val();
+              let startrow = 1;
+              if (campaignRow !== '') {
+                  startrow = campaigns[campaignRow].startingRow;
+              }
+              document.getElementById('swCurRow').value = startRow;
+            });
             $("#swCampaignSelect").change(()=>{getAllRowData()});
             $("#swAPIKeyUpdate").click(function(){updateAPIKey();});
             $("#refreshCampaign").click(function(){getCampaignData();});
