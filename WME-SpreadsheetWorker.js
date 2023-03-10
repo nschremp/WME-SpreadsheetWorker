@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2020.10.13
+// @version          2023.03.10
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,9 +27,7 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Enhancement: Changes to work with sheets that only have PLs.</li>
-    <li>Enhancement: Changes to allow sheets that don't start on row 2.</li>
-    <li>Enhancement: Changes to allow sheets thathave a checkbox for a complete column.</li>
+    <li>Enhancement: Misc. fixes. Filters weren't working correctly.</li>
   </ul>
 </p>`;
 
@@ -161,7 +159,7 @@
             return;
         }
 
-        let url = encodeURI("https://sheets.googleapis.com/v4/spreadsheets/"+spreadsheetId+"/values/"+sheetName+"!A1:J"+maxRows+"?key="+settings.apiKey);
+        let url = encodeURI("https://sheets.googleapis.com/v4/spreadsheets/"+spreadsheetId+"/values/"+sheetName+"!A1:P"+maxRows+"?key="+settings.apiKey);
         console.log("SW: getting sheet info ("+url+")");
 
         $.ajax({
@@ -182,7 +180,9 @@
     }
 
     function stateFilterPass(state) {
-        return state.toLowerCase() === $('#swStateFilter').val().toLowerCase() ||
+        //console.log(`state=${state} stateFilter=${$('#swStateFilter').val()}`);
+        return state.toLowerCase() === $('#swStateFilter').find(":selected").val().toLowerCase() ||
+               state.toLowerCase() === $('#swStateFilter').find(":selected").text().toLowerCase() ||
                '' === $('#swStateFilter').val()
     }
 
@@ -210,6 +210,7 @@
         let currentRow = parseInt($('#swCurRow').val(), 10);
 
         while(typeof sheetData.values[currentRow] !== "undefined" && currentRow < 500000 ) {
+
             let lon = getLon(currentRow, lonCol, plCol);
             let lat = getLat(currentRow, latCol, plCol);
 
@@ -279,7 +280,7 @@
                                          function (){
             $("#swGetNextBtn").click(()=>{getNext()});
             STATES.forEach(function(item, i){
-                $('#swStateFilter').append("<option value='"+item.name+"'>"+item.name+"</option>");
+                $('#swStateFilter').append("<option value='"+item.abbreviation+"'>"+item.name+"</option>");
             });
             $("#swStateFilter").change(()=>{
               let campaignRow = $('#swCampaignSelect').val();
@@ -292,7 +293,6 @@
             $("#swCampaignSelect").change(()=>{getAllRowData()});
             $("#swAPIKeyUpdate").click(function(){updateAPIKey();});
             $("#refreshCampaign").click(function(){getCampaignData();});
-            $("#swTab").tabs();
         });
 
         await loadSettings();
@@ -313,51 +313,57 @@
     function tabHTML(){
         return `
 <div id='swTab'>
-  <ul>
-    <li><a href="#swTab1">Spreadsheet Worker</a></li>
-    <li><a href="#swTab2">Settings</a></li>
+  <ul class="nav nav-tabs">
+    <li>
+      <a href="#sw-main" data-toggle="tab" aria-expanded="true">Spreadsheet Worker</a>
+    </li>
+    <li>
+      <a href="#sw-settings" data-toggle="tab" aria-expanded="true">Settings</a>
+    </li>
   </ul>
-  <div id="swTab1">
-    <div style='display: block' >
-      <label for='swCampaignSelect'>Campaign</label>
-      <select id='swCampaignSelect'>
-        <option value=''>Select</option>
-      </select>
+  <div class="tab-content">
+    <div class="tab-pane active" id="sw-main">
+      <div>
+        <label for='swCampaignSelect'>Campaign</label>
+        <select id='swCampaignSelect'>
+          <option value=''>Select</option>
+        </select>
+      </div>
+      <div style='display: block' >
+        <label for='swStateFilter'>Filter State</label>
+        <select id='swStateFilter'>
+          <option value=''>None</option>
+        </select>
+      </div>
+      <div style='display: block' >
+        <button id='swGetNextBtn'>Next</button>
+        <label for='swCurRow'>Current Row</label>
+        <input id='swCurRow' size=10 value=1 />
+      </div>
     </div>
-    <div style='display: block' >
-      <label for='swStateFilter'>Filter State</label>
-      <select id='swStateFilter'>
-        <option value=''>None</option>
-      </select>
-    </div>
-    <div style='display: block' >
-      <button id='swGetNextBtn'>Next</button>
-      <label for='swCurRow'>Current Row</label>
-      <input id='swCurRow' size=10 value=1 />
-    </div>
-  </div>
-  <div id="swTab2">
-    <div style='display: block' >
-      <button id='swAPIKeyUpdate'>Update API key</button>
-      <input id='swAPIKey'  />
-      <button id="refreshCampaign">Refresh Campaigns</button>
-    </div>
-    <div>
-      <ol>
-        <li>Go to <a href='https://console.cloud.google.com/projectselector2/apis/credentials'>Google Cloud Console</a></li>
-        <li>Select create a project</li>
-        <li>Give it any name you want and click create</li>
-        <li>Click create credentials -> API Key</li>
-        <li>Click Dashboard on the left</li>
-        <li>Click enable APIs and Services</li>
-        <li>Find Google Sheets API and click it</li>
-        <li>Click Enable.</li>
-        <li>Click the back arrow on the top left twice.</li>
-        <li>Click 'Credentials' on the left side</li
-        <li>Copy the generated key, paste it into the above box, and click 'Update API Key'</li>
-        <li>Done. You should be able to use the script. It may take a few minutes for the changes to take effect</li>
-        <li>If the campaign select box is not populating, try refreshing the list</li>
-      </ol>
+    <div class="tab-pane" id="sw-settings">
+      <div style='display: block' >
+        <button id='swAPIKeyUpdate'>Update API key</button>
+        <input id='swAPIKey'  />
+        <button id="refreshCampaign">Refresh Campaigns</button>
+       </div>
+       <div>
+        <ol>
+          <li>Go to <a href='https://console.cloud.google.com/projectselector2/apis/credentials'>Google Cloud Console</a></li>
+          <li>Select create a project</li>
+          <li>Give it any name you want and click create</li>
+          <li>Click create credentials -> API Key</li>
+          <li>Click Dashboard on the left</li>
+          <li>Click enable APIs and Services</li>
+          <li>Find Google Sheets API and click it</li>
+          <li>Click Enable.</li>
+          <li>Click the back arrow on the top left twice.</li>
+          <li>Click 'Credentials' on the left side</li
+          <li>Copy the generated key, paste it into the above box, and click 'Update API Key'</li>
+          <li>Done. You should be able to use the script. It may take a few minutes for the changes to take effect</li>
+          <li>If the campaign select box is not populating, try refreshing the list</li>
+        </ol>
+      </div>
     </div>
   </div>
 </div>`;
