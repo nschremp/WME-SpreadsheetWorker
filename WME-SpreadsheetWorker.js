@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Spreadsheet Worker
 // @namespace        https://greasyfork.org/en/users/77740-nathan-fastestbeef-fastestbeef
-// @version          2023.03.10
+// @version          2023.03.11
 // @description      makes working spreadsheet projects easier
 // @author           FastestBeef
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,7 @@
     const UPDATE_NOTES = `
 <p>
   <ul>
-    <li>Enhancement: Misc. fixes. Filters weren't working correctly.</li>
+    <li>Enhancement: Style and performance improvements made by The_Cre8r. Now it actually looks nice.</li>
   </ul>
 </p>`;
 
@@ -119,7 +119,7 @@
             success: function(data){
               $('#swCampaignSelect')
                 .empty()
-                .append('<option selected="selected" value="">Select</option>');
+                .append('<wz-option selected="selected" value="">Select</wz-option>');
                 data.values.shift(); // Kill header row
                 data.values.forEach(function(item, i){
                     let campaignRow = {campaignName:item[0],
@@ -140,7 +140,7 @@
                     }
                     campaigns.push(campaignRow);
                     if(campaignRow.active || (campaignRow.test && WazeWrap.User.Username() === 'FastestBeef')){
-                      $('#swCampaignSelect').append(new Option(item[0], i));
+                      $('#swCampaignSelect').append(`<wz-option selected="selected" value="${i}">${item[0]}</wz-option>`);
                     };
                 });
             },
@@ -169,7 +169,7 @@
             },
             dataType: 'JSON'
         });
-        document.getElementById('swCurRow').value = campaigns[campaignRow].startingRow;
+        document.querySelector("#swCurRow").value = campaigns[campaignRow].startingRow;
     }
 
     function getPrev() {
@@ -181,9 +181,9 @@
 
     function stateFilterPass(state) {
         //console.log(`state=${state} stateFilter=${$('#swStateFilter').val()}`);
-        return state.toLowerCase() === $('#swStateFilter').find(":selected").val().toLowerCase() ||
-               state.toLowerCase() === $('#swStateFilter').find(":selected").text().toLowerCase() ||
-               '' === $('#swStateFilter').val()
+        return state.toLowerCase() === document.querySelector("#swStateFilter").value.toLowerCase() ||
+               state.toLowerCase() === Array.from(document.querySelectorAll("#swStateFilter > wz-option")).filter(option => option.value == document.querySelector("#swStateFilter").value)[0].getAttribute("name").toLowerCase() ||
+               '' === document.querySelector("#swStateFilter").value
     }
 
     function polygonPass(xCoord, yCoord) {
@@ -207,7 +207,7 @@
         let latCol = campaigns[campaignRow].latCol.toUpperCase().charCodeAt(0) - 65;
         let plCol = campaigns[campaignRow].plCol.toUpperCase().charCodeAt(0) - 65;
 
-        let currentRow = parseInt($('#swCurRow').val(), 10);
+        let currentRow = parseInt(document.querySelector("#swCurRow").value, 10);
 
         while(typeof sheetData.values[currentRow] !== "undefined" && currentRow < 500000 ) {
 
@@ -224,7 +224,7 @@
 
                 //W.map.getOLMap().zoomTo(9);
                 W.map.setCenter(location);
-                document.getElementById('swCurRow').value = currentRow+1;
+                document.querySelector("#swCurRow").value = currentRow+1;
                 return;
             }
             currentRow++;
@@ -259,6 +259,22 @@
         saveSettings();
     }
 
+    function openSheetAtCurRow() {
+        let campaignRow = $('#swCampaignSelect').val();
+
+        if (campaignRow === '') {
+            WazeWrap.Alerts.error('Spreadsheet Worker', 'You must select a campaign first.');
+            return;
+        }
+
+        let spreadsheetId=campaigns[campaignRow].spreadsheetId;
+        let row = $('#swCurRow').val();
+
+        let url = encodeURI("https://docs.google.com/spreadsheets/d/"+spreadsheetId+"/edit#gid=0&range=A"+row);
+
+        window.open(url, "_blank");
+    }
+
     function bootstrap(tries = 1) {
         if (W &&
             W.map &&
@@ -280,19 +296,20 @@
                                          function (){
             $("#swGetNextBtn").click(()=>{getNext()});
             STATES.forEach(function(item, i){
-                $('#swStateFilter').append("<option value='"+item.abbreviation+"'>"+item.name+"</option>");
+                $('#swStateFilter').append(`<wz-option value="${item.abbreviation}" name="${item.name}">${item.name}</wz-option>`);
             });
             $("#swStateFilter").change(()=>{
               let campaignRow = $('#swCampaignSelect').val();
-              let startrow = 1;
+              let startRow = 1;
               if (campaignRow !== '') {
-                  startrow = campaigns[campaignRow].startingRow;
+                  startRow = campaigns[campaignRow].startingRow;
               }
-              document.getElementById('swCurRow').value = startRow;
+              document.querySelector("#swCurRow").value = startRow;
             });
             $("#swCampaignSelect").change(()=>{getAllRowData()});
             $("#swAPIKeyUpdate").click(function(){updateAPIKey();});
             $("#refreshCampaign").click(function(){getCampaignData();});
+            $("#swLink").click(function(){openSheetAtCurRow();});
         });
 
         await loadSettings();
@@ -311,62 +328,66 @@
     }
 
     function tabHTML(){
-        return `
-<div id='swTab'>
-  <ul class="nav nav-tabs">
-    <li>
-      <a href="#sw-main" data-toggle="tab" aria-expanded="true">Spreadsheet Worker</a>
-    </li>
-    <li>
-      <a href="#sw-settings" data-toggle="tab" aria-expanded="true">Settings</a>
-    </li>
-  </ul>
-  <div class="tab-content">
-    <div class="tab-pane active" id="sw-main">
-      <div>
-        <label for='swCampaignSelect'>Campaign</label>
-        <select id='swCampaignSelect'>
-          <option value=''>Select</option>
-        </select>
-      </div>
-      <div style='display: block' >
-        <label for='swStateFilter'>Filter State</label>
-        <select id='swStateFilter'>
-          <option value=''>None</option>
-        </select>
-      </div>
-      <div style='display: block' >
-        <button id='swGetNextBtn'>Next</button>
-        <label for='swCurRow'>Current Row</label>
-        <input id='swCurRow' size=10 value=1 />
-      </div>
-    </div>
-    <div class="tab-pane" id="sw-settings">
-      <div style='display: block' >
-        <button id='swAPIKeyUpdate'>Update API key</button>
-        <input id='swAPIKey'  />
-        <button id="refreshCampaign">Refresh Campaigns</button>
+        return `<wz-tabs fixed="true">
+  <wz-tab is-active="" label="General" class="sw-tab" style="overflow:inherit;">
+    <div>
+      <div class="form-group" style="z-index: 13;">
+        <wz-label html-for="swCurRow">Campaign</wz-label>
+          <div style="align-items: center;display: flex;gap: 5px;margin-bottom: 16px;width: 100%;">
+            <wz-select disabled="false" value="" name="" id="swCampaignSelect">
+              <wz-option value="">Select</wz-option>
+            </wz-select>
+            <wz-button id="refreshCampaign" color="primary" size="sm" disabled="false" class="overlay-button reload-button"><i class="w-icon w-icon-refresh"></i></wz-button>
+          </div>
+        </div>
+        <div class="form-group" style="z-index: 12;">
+          <wz-select label="Filter State" disabled="false" value="" name="" id="swStateFilter">
+            <wz-option value="" name="">None</wz-option>
+          </wz-select>
+        </div>
+        <div class="form-group" style="z-index: 11;">
+          <wz-label html-for="swCurRow">Current Row</wz-label>
+          <div style="align-items: center;display: flex;gap: 5px;margin-bottom: 16px;">
+           <wz-button id="swLink" disabled="false" size="sm" color="shadowed"><i class="w-icon w-icon-link"></i></wz-button>
+           <wz-text-input size="sm" type="number" style="min-width: auto;" name="swCurRow" id="swCurRow" placeholder="" autocomplete="on" value="">
+             <input name="swCurRow" style="display: none; visibility: hidden;">
+           </wz-text-input>
+           <wz-button color="primary" size="sm" disabled="false" id="swGetNextBtn">Next</wz-button>
+         </div>
        </div>
-       <div>
-        <ol>
-          <li>Go to <a href='https://console.cloud.google.com/projectselector2/apis/credentials'>Google Cloud Console</a></li>
-          <li>Select create a project</li>
-          <li>Give it any name you want and click create</li>
-          <li>Click create credentials -> API Key</li>
-          <li>Click Dashboard on the left</li>
-          <li>Click enable APIs and Services</li>
-          <li>Find Google Sheets API and click it</li>
-          <li>Click Enable.</li>
-          <li>Click the back arrow on the top left twice.</li>
-          <li>Click 'Credentials' on the left side</li
-          <li>Copy the generated key, paste it into the above box, and click 'Update API Key'</li>
-          <li>Done. You should be able to use the script. It may take a few minutes for the changes to take effect</li>
-          <li>If the campaign select box is not populating, try refreshing the list</li>
-        </ol>
-      </div>
-    </div>
-  </div>
-</div>`;
+     </div>
+  </wz-tab>
+  <wz-tab is-active="false" label="Settings" class="sw-settings-tab">
+   <div style='display: block' >
+   <wz-label html-for="swAPIKey">API Key</wz-label>
+     <div style="align-items: center;display: flex;gap: 5px;margin-bottom: 16px;width: 100%;">
+       <wz-text-input name="swAPIKey" id="swAPIKey" value="" placeholder="Paste API Key" autocomplete="off">
+         <input name="swAPIKey" style="display: none; visibility: hidden;">
+       </wz-text-input>
+       <wz-button color="primary" size="sm" disabled="false" id="swAPIKeyUpdate">Update</wz-button>
+     </div>
+   </div>
+   <wz-label html-for="">Instructions</wz-label>
+    <div class="form-group">
+     <ol>
+       <li>Go to <a href='https://console.cloud.google.com/projectselector2/apis/credentials'>Google Cloud Console</a></li>
+       <li>Select create a project</li>
+       <li>Give it any name you want and click create</li>
+       <li>Click create credentials -> API Key</li>
+       <li>Click Dashboard on the left</li>
+       <li>Click enable APIs and Services</li>
+       <li>Find Google Sheets API and click it</li>
+       <li>Click Enable.</li>
+       <li>Click the back arrow on the top left twice.</li>
+       <li>Click 'Credentials' on the left side</li
+       <li>Copy the generated key, paste it into the above box, and click 'Update API Key'</li>
+       <li>Done. You should be able to use the script. It may take a few minutes for the changes to take effect</li>
+       <li>If the campaign select box is not populating, try refreshing the list</li>
+     </ol>
+   </div>
+   <div class="form-group"> <div style="text-align: center;padding-top: 20px;"> <i class="fa fa-github" style="font-size: 13px; padding-right:5px"></i> <div style="display: inline-block;"> <a target="_blank" href="https://github.com/nschremp/WME-SpreadsheetWorker/issues/new" id="csReportAnIssue">Report an Issue on GitHub</a> </div> </div>  </div>
+  </wz-tab>
+</wz-tabs>`;
     }
 
     async function loadSettings() {
